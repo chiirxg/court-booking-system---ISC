@@ -11,13 +11,19 @@ import Button from '../components/ui/Button'
 // BookingFormPage — form to request a court booking
 // If the user clicked "Book" on the Courts page, the court
 // and time slot are pre-filled via URL query parameters.
+//
+// What changed from the old version:
+//   • addBooking is now async (it talks to Firestore)
+//   • We handle the { success, error } return value
+//   • A "saving" state disables the button while Firestore saves
+//   • An inline error message is shown if the slot is already taken
 // ─────────────────────────────────────────────────────
 
 function BookingFormPage() {
   // Read URL query parameters — e.g. /book?court=Badminton%20Court&slot=8%3A00%20AM
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const { addBooking } = useBooking()  // function to save a new booking
+  const { addBooking } = useBooking()  // async function to save a new booking
 
   // Pre-fill form if user came from the Courts page
   const prefillCourt = searchParams.get('court') || ''
@@ -29,22 +35,42 @@ function BookingFormPage() {
   const [court,       setCourt]       = useState(prefillCourt)
   const [date,        setDate]        = useState('')
   const [timeSlot,    setTimeSlot]    = useState(prefillSlot)
-  const [submitted,   setSubmitted]   = useState(false)  // true after form submit
+
+  // submitted — true after a SUCCESSFUL booking; shows the success screen
+  const [submitted, setSubmitted] = useState(false)
+
+  // saving — true while we are waiting for Firestore to save the booking
+  // We disable the Submit button during this time to prevent double-clicks
+  const [saving, setSaving] = useState(false)
+
+  // slotError — holds an error message if the chosen slot is already booked
+  // Empty string means no error
+  const [slotError, setSlotError] = useState('')
 
   // ── Handle form submission ──────────────────────────
-  function handleSubmit(e) {
-    e.preventDefault()  // stop the browser from refreshing the page
+  async function handleSubmit(e) {
+    e.preventDefault()    // stop the browser from refreshing the page
+    setSlotError('')      // clear any previous error message
+    setSaving(true)       // disable the Submit button immediately
 
-    // Save the booking to global state (status will be set to "Pending")
-    addBooking({ studentName, rollNumber, court, date, timeSlot })
+    // Call addBooking — it now returns { success: true } or
+    // { success: false, error: "This slot is already booked." }
+    const result = await addBooking({ studentName, rollNumber, court, date, timeSlot })
 
-    setSubmitted(true)  // show the success message
+    setSaving(false)  // re-enable the button no matter what happened
 
-    // After 2 seconds, redirect to My Bookings page
-    setTimeout(() => navigate('/my-bookings'), 2000)
+    if (result.success) {
+      // Booking saved successfully
+      setSubmitted(true)
+      // After 2 seconds, redirect to My Bookings page
+      setTimeout(() => navigate('/my-bookings'), 2000)
+    } else {
+      // Something went wrong — show the error message below the form
+      setSlotError(result.error)
+    }
   }
 
-  // ── Success screen — shown after form submit ────────
+  // ── Success screen — shown after a successful submit ────────
   if (submitted) {
     return (
       <div className="max-w-md mx-auto px-4 py-20 text-center">
@@ -147,14 +173,27 @@ function BookingFormPage() {
               </Select>
             </div>
 
+            {/* ── Slot-already-booked error message ────────────────────────
+                 Only visible when slotError is not an empty string.
+                 The red box appears right above the buttons so it's hard to miss. */}
+            {slotError && (
+              <div className="bg-red-50 border border-red-300 text-red-700 rounded-lg px-4 py-3 text-sm">
+                {/* ⚠️ icon followed by the error text */}
+                ⚠️ {slotError}
+              </div>
+            )}
+
             {/* ── Buttons ── */}
             <div className="flex gap-3 pt-2">
-              {/* type="submit" triggers the form's onSubmit handler */}
-              <Button type="submit" className="flex-1">
-                Submit Booking
+              {/* type="submit" triggers the form's onSubmit handler.
+                  disabled={saving} greys out the button while Firestore is saving,
+                  which prevents the user from clicking Submit twice. */}
+              <Button type="submit" className="flex-1" disabled={saving}>
+                {/* Show different text depending on whether we are saving */}
+                {saving ? 'Saving…' : 'Submit Booking'}
               </Button>
               {/* navigate(-1) goes back to the previous page */}
-              <Button type="button" variant="outline" onClick={() => navigate(-1)}>
+              <Button type="button" variant="outline" onClick={() => navigate(-1)} disabled={saving}>
                 Cancel
               </Button>
             </div>

@@ -6,11 +6,28 @@ import Button from '../components/ui/Button'
 // ─────────────────────────────────────────────────────
 // AdminDashboard — /admin route
 // Shows ALL bookings; admin can Approve or Reject pending ones
+//
+// What changed from the old version:
+//   • We now also read `loading` from context
+//   • While loading is true we show a spinner instead of the dashboard
 // ─────────────────────────────────────────────────────
 
 function AdminDashboard() {
-  // Get bookings and the function that changes a booking's status
-  const { bookings, updateBookingStatus } = useBooking()
+  // bookings          — live list from Firestore
+  // updateBookingStatus — function to approve/reject
+  // loading           — true while waiting for the first Firestore reply
+  const { bookings, updateBookingStatus, loading } = useBooking()
+
+  // ── Loading screen ───────────────────────────────────────────────────────
+  // Show a simple spinner while Firestore is sending the first batch of data.
+  if (loading) {
+    return (
+      <div className="max-w-6xl mx-auto px-4 py-20 text-center text-gray-400">
+        <div className="text-4xl mb-3 animate-spin inline-block">⏳</div>
+        <p>Loading bookings…</p>
+      </div>
+    )
+  }
 
   // Count bookings in each status for the summary row
   const pendingCount  = bookings.filter(b => b.status === 'Pending').length

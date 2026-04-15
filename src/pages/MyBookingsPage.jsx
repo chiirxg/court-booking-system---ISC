@@ -6,10 +6,30 @@ import Badge from '../components/ui/Badge'
 // MyBookingsPage — shows a table of all bookings
 // In a real app you'd filter by the logged-in student;
 // here we show all bookings since there's no auth.
+//
+// What changed from the old version:
+//   • We now also read `loading` from context
+//   • While loading is true we show a spinner instead of the table
+//     (this prevents a flash of "No bookings yet" before Firestore responds)
 // ─────────────────────────────────────────────────────
 
 function MyBookingsPage() {
-  const { bookings } = useBooking()  // get the global bookings list
+  // bookings — live list from Firestore
+  // loading  — true while waiting for the first Firestore reply
+  const { bookings, loading } = useBooking()
+
+  // ── Loading screen ─────────────────────────────────────────────────────────
+  // Show a simple spinner while we wait for Firestore to send us the bookings.
+  // Without this, the page would briefly flash "No bookings yet" every time
+  // it loads, even if there are bookings in the database.
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-20 text-center text-gray-400">
+        <div className="text-4xl mb-3 animate-spin inline-block">⏳</div>
+        <p>Loading bookings…</p>
+      </div>
+    )
+  }
 
   // Map booking status string → Badge variant name
   function statusVariant(status) {
